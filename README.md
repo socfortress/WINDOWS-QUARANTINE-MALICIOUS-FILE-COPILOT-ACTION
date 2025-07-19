@@ -1,10 +1,10 @@
-# PowerShell Active Response Template
+# PowerShell Quarantine File Template
 
 This repository serves as a template for creating PowerShell-based active response scripts for security automation and incident response. The template provides a standardized structure and common functions to ensure consistent logging, error handling, and execution flow across all active response scripts.
 
 ## Overview
 
-The `automation-template.ps1` file is the foundation for all PowerShell active response scripts. It provides a robust framework with built-in logging, error handling, and standardized output formatting suitable for integration with security orchestration platforms, SIEM systems, and incident response workflows.
+The `Quarantine-MaliciousFile.ps1` file is the foundation for PowerShell active response scripts that securely move and restrict access to suspicious files. It provides a robust framework with built-in logging, error handling, and standardized output formatting suitable for integration with security orchestration platforms, SIEM systems, and incident response workflows.
 
 ## Template Structure
 
@@ -22,28 +22,28 @@ The template includes the following essential components:
 
 ### Command Line Execution
 ```powershell
-.\automation-template.ps1 [-MaxWaitSeconds <int>] [-LogPath <string>] [-ARLog <string>]
+.\Quarantine-MaliciousFile.ps1 -TargetPath <string> [-LogPath <string>] [-ARLog <string>]
 ```
 
 ### Parameters
 
-| Parameter | Type | Default Value | Description |
-|-----------|------|---------------|-------------|
-| `MaxWaitSeconds` | int | 300 | Maximum execution time in seconds before timeout |
-| `LogPath` | string | `$env:TEMP\Generic-Automation.log` | Path for detailed execution logs |
-| `ARLog` | string | `C:\Program Files (x86)\ossec-agent\active-response\active-responses.log` | Path for active response JSON output |
+| Parameter     | Type   | Default Value                                                    | Description                                  |
+|---------------|--------|------------------------------------------------------------------|----------------------------------------------|
+| `TargetPath`  | string | (mandatory)                                                      | Full path of the file to quarantine          |
+| `LogPath`     | string | `$env:TEMP\QuarantineFile-script.log`                            | Path for execution logs                      |
+| `ARLog`       | string | `C:\Program Files (x86)\ossec-agent\active-response\active-responses.log` | Path for active response JSON output         |
 
 ### Example Invocations
 
 ```powershell
-# Basic execution with default parameters
-.\automation-template.ps1
+# Quarantine a file with default log paths
+.\Quarantine-MaliciousFile.ps1 -TargetPath "C:\Users\Public\Downloads\malware.exe"
 
-# Custom timeout and log paths
-.\automation-template.ps1 -MaxWaitSeconds 600 -LogPath "C:\Logs\my-script.log"
+# Custom log path
+.\Quarantine-MaliciousFile.ps1 -TargetPath "C:\Temp\badfile.exe" -LogPath "C:\Logs\QuarantineFile.log"
 
 # Integration with OSSEC/Wazuh active response
-.\automation-template.ps1 -ARLog "C:\ossec\active-responses.log"
+.\Quarantine-MaliciousFile.ps1 -TargetPath "C:\Temp\badfile.exe" -ARLog "C:\ossec\active-responses.log"
 ```
 
 ## Template Functions
@@ -63,8 +63,8 @@ The template includes the following essential components:
 
 **Usage**:
 ```powershell
-Write-Log "Process started successfully" 'INFO'
-Write-Log "Configuration file not found" 'WARN'
+Write-Log "Moved file to quarantine: C:\Quarantine\malware_20250718103045.quarantined" 'INFO'
+Write-Log "Stripped file permissions and restricted to Administrators" 'INFO'
 Write-Log "Critical error occurred" 'ERROR'
 Write-Log "Debug information" 'DEBUG'
 ```
@@ -92,9 +92,8 @@ Write-Log "Debug information" 'DEBUG'
 
 ### 2. Execution Phase
 - Script start logging with timestamp
-- Main action logic execution (customizable section)
+- Main action logic execution (move file to quarantine and restrict permissions)
 - Real-time logging of operations
-- Progress monitoring and timeout handling
 
 ### 3. Completion Phase
 - JSON result formatting and output
@@ -115,12 +114,11 @@ All scripts output standardized JSON responses to the active response log:
 ### Success Response
 ```json
 {
-  "timestamp": "2025-07-18T10:30:45.123Z",
   "host": "HOSTNAME",
-  "action": "script_action_name",
-  "status": "success",
-  "result": "Action completed successfully",
-  "data": {}
+  "timestamp": "2025-07-18T10:30:45.123Z",
+  "action": "quarantine_file",
+  "original": "C:\\Users\\Public\\Downloads\\malware.exe",
+  "quarantined_as": "C:\\Quarantine\\malware_20250718103045.quarantined"
 }
 ```
 
@@ -129,16 +127,16 @@ All scripts output standardized JSON responses to the active response log:
 {
   "timestamp": "2025-07-18T10:30:45.123Z",
   "host": "HOSTNAME",
-  "action": "generic_error",
+  "action": "quarantine_file",
   "status": "error",
-  "error": "Detailed error message"
+  "error": "Target file not found: C:\\Users\\Public\\Downloads\\malware.exe"
 }
 ```
 
 ## Implementation Guidelines
 
 ### 1. Customizing the Template
-1. Copy `automation-template.ps1` to your new script name
+1. Copy `Quarantine-MaliciousFile.ps1` to your new script name
 2. Replace the action logic section between the comment markers
 3. Update the action name in the JSON output
 4. Add any additional parameters as needed
@@ -148,37 +146,33 @@ All scripts output standardized JSON responses to the active response log:
 - Always use the provided logging functions
 - Implement proper error handling for all operations
 - Include meaningful progress messages
-- Test timeout scenarios
 - Validate all input parameters
 - Document any additional functions or parameters
 
 ### 3. Integration Considerations
-- Ensure proper file permissions for log paths
-- Configure appropriate timeout values for your use case
+- Ensure proper file permissions for log paths and quarantine directory
 - Test script execution in target environments
 - Validate JSON output format compatibility
-- Consider network connectivity requirements
 
 ## Security Considerations
 
 - Scripts should run with minimal required privileges
 - Validate all input parameters to prevent injection attacks
-- Implement proper access controls for log files
+- Implement proper access controls for log files and quarantine directory
 - Use secure communication channels when applicable
 - Log all security-relevant actions and decisions
 
 ## Troubleshooting
 
 ### Common Issues
-1. **Permission Errors**: Ensure script has write access to log paths
-2. **Timeout Issues**: Adjust `MaxWaitSeconds` parameter for long-running operations
-3. **Log Rotation**: Check disk space and file permissions for log directory
-4. **JSON Format**: Validate output against expected schema
+1. **Permission Errors**: Ensure script has write access to log paths and quarantine directory, and is run as Administrator for file operations
+2. **Log Rotation**: Check disk space and file permissions for log directory
+3. **JSON Format**: Validate output against expected schema
 
 ### Debug Mode
 Enable verbose logging by running with `-Verbose` parameter:
 ```powershell
-.\automation-template.ps1 -Verbose
+.\Quarantine-MaliciousFile.ps1 -TargetPath "C:\Temp\badfile.exe" -Verbose
 ```
 
 ## Contributing
@@ -239,13 +233,13 @@ Invoke-WebRequest -Uri "https://github.com/{owner}/{repo}/releases/download/v1.0
 #### Option 2: Direct Download
 ```powershell
 # Download script directly
-Invoke-WebRequest -Uri "https://github.com/{owner}/{repo}/releases/download/v1.0.0/script-name.ps1" -OutFile "script-name.ps1"
+Invoke-WebRequest -Uri "https://github.com/{owner}/{repo}/releases/download/v1.0.0/Quarantine-MaliciousFile.ps1" -OutFile "Quarantine-MaliciousFile.ps1"
 ```
 
 #### Option 3: One-liner Execution
 ```powershell
 # Execute directly from URL (use with caution)
-Invoke-WebRequest -Uri "https://github.com/{owner}/{repo}/releases/download/v1.0.0/script-name.ps1" | Invoke-Expression
+Invoke-WebRequest -Uri "https://github.com/{owner}/{repo}/releases/download/v1.0.0/Quarantine-MaliciousFile.ps1" | Invoke-Expression
 ```
 
 ### Production Deployment
