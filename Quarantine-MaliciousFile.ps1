@@ -81,6 +81,7 @@ try {
     original = $TargetPath
     quarantined_as = $quarantinePath
     status = "success"
+    copilot_soar = $true
   }
   $results | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Encoding ascii -Width 2000
   Write-Log "Result JSON appended to $ARLog" 'INFO'
@@ -93,6 +94,7 @@ try {
     target = $TargetPath
     status = 'error'
     error = $_.Exception.Message
+    copilot_soar = $true
   }
   $errorObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Encoding ascii -Width 2000
 } finally {
