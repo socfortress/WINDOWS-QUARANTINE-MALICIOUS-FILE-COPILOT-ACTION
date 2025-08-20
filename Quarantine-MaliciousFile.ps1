@@ -81,7 +81,7 @@ try {
     original = $TargetPath
     quarantined_as = $quarantinePath
     status = "success"
-    copilot_soar = $true
+    copilot_action = $true
   }
   $results | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Encoding ascii -Width 2000
   Write-Log "Result JSON appended to $ARLog" 'INFO'
@@ -94,10 +94,11 @@ try {
     target = $TargetPath
     status = 'error'
     error = $_.Exception.Message
-    copilot_soar = $true
+    copilot_action = $true
   }
   $errorObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Encoding ascii -Width 2000
 } finally {
   $dur = [int]((Get-Date) - $runStart).TotalSeconds
   Write-Log "=== SCRIPT END : duration ${dur}s ==="
 }
+
