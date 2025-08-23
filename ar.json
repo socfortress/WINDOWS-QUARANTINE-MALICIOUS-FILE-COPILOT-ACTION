@@ -1,5 +1,5 @@
 {
-  "copilot_action_name": "WINDOWS-QUARANTINE-MALICIOUS-FILE-ACTIVERESPONSE",
+  "copilot_action_name": "WINDOWS-QUARANTINE-MALICIOUS-FILE-COPILOT-ACTION",
   "description": "Moves a potentially malicious file to a secure quarantine directory, renames it with a timestamp, strips permissions, and restricts access to Administrators only. Generates a JSON log of the action.",
   "technology": "Windows",
   "icon": "windows",
