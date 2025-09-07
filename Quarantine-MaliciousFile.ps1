@@ -7,15 +7,14 @@ param(
   [string]$Arg1
 )
 
-# Arg1 override for Velociraptor/Copilot actions
 if ($Arg1 -and -not $TargetPath) { $TargetPath = $Arg1 }
 
 $ErrorActionPreference = 'Stop'
-$HostName   = $env:COMPUTERNAME
-$LogMaxKB   = 100
-$LogKeep    = 5
+$HostName      = $env:COMPUTERNAME
+$LogMaxKB      = 100
+$LogKeep       = 5
 $QuarantineDir = "C:\Quarantine"
-$runStart   = Get-Date
+$runStart      = Get-Date
 
 function Write-Log {
   param([string]$Message,[ValidateSet('INFO','WARN','ERROR','DEBUG')]$Level='INFO')
@@ -42,14 +41,20 @@ function Rotate-Log {
   }
 }
 
-function NowZ { (Get-Date).ToString('yyyy-MM-dd HH:mm:sszzz') }
+function To-ISO8601 {
+  param($dt)
+  if ($dt -and $dt -is [datetime] -and $dt.Year -gt 1900) { $dt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') } else { $null }
+}
+
+function New-NdjsonLine { param([hashtable]$Data) ($Data | ConvertTo-Json -Compress -Depth 7) }
 
 function Write-NDJSONLines {
   param([string[]]$JsonLines,[string]$Path=$ARLog)
   $tmp = Join-Path $env:TEMP ("arlog_{0}.tmp" -f ([guid]::NewGuid().ToString("N")))
   $dir = Split-Path -Parent $Path
   if ($dir -and -not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
-  Set-Content -Path $tmp -Value ($JsonLines -join [Environment]::NewLine) -Encoding ascii -Force
+  $payload = ($JsonLines -join [Environment]::NewLine) + [Environment]::NewLine
+  Set-Content -Path $tmp -Value $payload -Encoding ascii -Force
   try { Move-Item -Path $tmp -Destination $Path -Force } catch { Move-Item -Path $tmp -Destination ($Path + '.new') -Force }
 }
 
@@ -66,10 +71,9 @@ function Get-FileHashSafe {
 }
 
 Rotate-Log
-Write-Log "=== SCRIPT START : Quarantine File [$TargetPath] ==="
+Write-Log "=== SCRIPT START : Quarantine File [$TargetPath] (host=$HostName) ==="
 
-$ts = NowZ
-$lines = @()
+$tsNow = To-ISO8601 (Get-Date)
 
 try {
   if (-not $TargetPath) { throw "TargetPath is required (or use -Arg1)" }
@@ -77,7 +81,6 @@ try {
     throw "Target file not found: $TargetPath"
   }
 
-  # Collect pre-move facts
   $preItem   = Get-Item -LiteralPath $TargetPath -ErrorAction Stop
   $preSize   = $preItem.Length
   $preHash   = Get-FileHashSafe -Path $TargetPath
@@ -87,109 +90,109 @@ try {
     New-Item -Path $QuarantineDir -ItemType Directory -Force | Out-Null
   }
 
-  # Build destination path (timestamp + GUID to avoid collisions)
   $stamp   = Get-Date -Format "yyyyMMddHHmmss"
   $guid    = [guid]::NewGuid().ToString("N").Substring(0,8)
   $base    = [IO.Path]::GetFileNameWithoutExtension($TargetPath)
   $newName = "{0}_{1}_{2}.quarantined" -f $base,$stamp,$guid
   $dest    = Join-Path $QuarantineDir $newName
 
-  # Move to quarantine
   Move-Item -LiteralPath $TargetPath -Destination $dest -Force
   Write-Log "Moved file to quarantine: $dest" 'INFO'
 
-  # Lock down ACL to Administrators only
   $admins = New-Object System.Security.Principal.NTAccount("BUILTIN","Administrators")
   $acl = New-Object System.Security.AccessControl.FileSecurity
   $acl.SetOwner($admins)
-  $acl.SetAccessRuleProtection($true,$false)  # disable inheritance
+  $acl.SetAccessRuleProtection($true,$false) 
   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($admins, "FullControl", "Allow")
   $acl.AddAccessRule($rule)
   Set-Acl -LiteralPath $dest -AclObject $acl
   Write-Log "Stripped file permissions and restricted to Administrators" 'INFO'
 
-  # Post-move facts for verification
-  $postExists     = Test-Path -LiteralPath $dest -PathType Leaf
-  $postHash       = if ($postExists) { Get-FileHashSafe -Path $dest } else { $null }
-  $postAcl        = if ($postExists) { Get-Acl -LiteralPath $dest } else { $null }
-  $postOwner      = if ($postAcl) { $postAcl.Owner } else { $null }
-  $inheritDisabled= if ($postAcl) { -not $postAcl.AreAccessRulesInherited } else { $false }
+  $postExists      = Test-Path -LiteralPath $dest -PathType Leaf
+  $postHash        = if ($postExists) { Get-FileHashSafe -Path $dest } else { $null }
+  $postAcl         = if ($postExists) { Get-Acl -LiteralPath $dest } else { $null }
+  $postOwner       = if ($postAcl) { $postAcl.Owner } else { $null }
+  $inheritDisabled = if ($postAcl) { -not $postAcl.AreAccessRulesInherited } else { $false }
 
-  # Detail: quarantine action
-  $lines += ([pscustomobject]@{
-    timestamp        = $ts
+  $lines = New-Object System.Collections.ArrayList
+
+  [void]$lines.Add( (New-NdjsonLine @{
+    timestamp        = $tsNow
     host             = $HostName
     action           = 'quarantine_file'
     copilot_action   = $true
-    type             = 'detail'
+    item             = 'detail'
+    description      = 'File moved to quarantine with hashes recorded'
     original_path    = $TargetPath
     quarantined_path = $dest
     size_bytes       = $preSize
     sha256_before    = $preHash
     sha256_after     = $postHash
-  } | ConvertTo-Json -Compress -Depth 6)
+  }) )
 
-  # Verification lines
-  $lines += ([pscustomobject]@{
-    timestamp        = $ts
-    host             = $HostName
-    action           = 'quarantine_file'
-    copilot_action   = $true
-    type             = 'verify_move'
-    original_exists  = (Test-Path -LiteralPath $TargetPath -PathType Leaf)
+  [void]$lines.Add( (New-NdjsonLine @{
+    timestamp          = $tsNow
+    host               = $HostName
+    action             = 'quarantine_file'
+    copilot_action     = $true
+    item               = 'verify_move'
+    description        = 'Post-move verification of existence and hash equality'
+    original_exists    = (Test-Path -LiteralPath $TargetPath -PathType Leaf)
     quarantined_exists = $postExists
-    hashes_match     = ( ($preHash) -and ($postHash) -and ($preHash -eq $postHash) )
-  } | ConvertTo-Json -Compress -Depth 6)
+    hashes_match       = ( ($preHash) -and ($postHash) -and ($preHash -eq $postHash) )
+  }) )
 
-  $lines += ([pscustomobject]@{
-    timestamp        = $ts
-    host             = $HostName
-    action           = 'quarantine_file'
-    copilot_action   = $true
-    type             = 'verify_acl'
-    quarantined_path = $dest
-    owner_before     = $preOwner
-    owner_after      = $postOwner
+  [void]$lines.Add( (New-NdjsonLine @{
+    timestamp            = $tsNow
+    host                 = $HostName
+    action               = 'quarantine_file'
+    copilot_action       = $true
+    item                 = 'verify_acl'
+    description          = 'ACL check after quarantine move'
+    quarantined_path     = $dest
+    owner_before         = $preOwner
+    owner_after          = $postOwner
     inheritance_disabled = $inheritDisabled
-    expected_owner_contains = 'BUILTIN\Administrators'
-    owner_is_admins  = ( "$postOwner" -like '*BUILTIN*Administrators*' )
-  } | ConvertTo-Json -Compress -Depth 6)
+    expected_owner       = 'BUILTIN\Administrators'
+    owner_is_expected    = ( "$postOwner" -like '*BUILTIN*Administrators*' )
+  }) )
 
-  # Summary (must be first)
   $status =
-    if ($postExists -and $preHash -and $postHash -and ($preHash -eq $postHash)) { 'success' }
+    if ($postExists -and $preHash -and $postHash -and ($preHash -eq $postHash) -and $inheritDisabled) { 'success' }
     elseif ($postExists) { 'moved_but_unverified' }
     else { 'failed' }
 
-  $summary = [pscustomobject]@{
-    timestamp        = $ts
+  $summary = New-NdjsonLine @{
+    timestamp        = $tsNow
     host             = $HostName
     action           = 'quarantine_file'
     copilot_action   = $true
-    type             = 'summary'
+    item             = 'summary'
+    description      = 'Run summary and outcome'
     original         = $TargetPath
     quarantined_as   = $dest
     status           = $status
     duration_s       = [math]::Round(((Get-Date)-$runStart).TotalSeconds,1)
   }
-  $lines = @(( $summary | ConvertTo-Json -Compress -Depth 6 )) + $lines
 
-  # Atomic write to ARLog
+  $lines = ,$summary + $lines
+
   Write-NDJSONLines -JsonLines $lines -Path $ARLog
   Write-Log ("NDJSON written to {0} ({1} lines)" -f $ARLog,$lines.Count) 'INFO'
 }
 catch {
   Write-Log $_.Exception.Message 'ERROR'
-  $err = [pscustomobject]@{
-    timestamp      = NowZ
+  $err = New-NdjsonLine @{
+    timestamp      = To-ISO8601 (Get-Date)
     host           = $HostName
     action         = 'quarantine_file'
     copilot_action = $true
-    type           = 'error'
+    item           = 'error'
+    description    = 'Unhandled error'
     target         = $TargetPath
     error          = $_.Exception.Message
   }
-  Write-NDJSONLines -JsonLines @(($err | ConvertTo-Json -Compress -Depth 6)) -Path $ARLog
+  Write-NDJSONLines -JsonLines @($err) -Path $ARLog
   Write-Log "Error NDJSON written" 'INFO'
 }
 finally {
