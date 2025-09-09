@@ -1,6 +1,6 @@
 {
-  "copilot_action_name": "WINDOWS-QUARANTINE-MALICIOUS-FILE-COPILOT-ACTION",
-  "description": "Moves a potentially malicious file to a secure quarantine directory, renames it with a timestamp, strips permissions, and restricts access to Administrators only. Generates a JSON log of the action.",
+  "copilot_action_name": "WINDOWS-QUARANTINE-FILE-COPILOT-ACTION",
+  "description": "Moves a specified file to C:\\Quarantine, renames it with a timestamp, and restricts permissions to Administrators. Records pre/post SHA256 to verify integrity and emits NDJSON entries for details, verification, and summary.",
   "technology": "Windows",
   "icon": "windows",
   "script_parameters": [
@@ -8,26 +8,12 @@
       "name": "TargetPath",
       "type": "string",
       "required": true,
-      "description": "Full path to the file that needs to be quarantined.",
-      "default": null
-    },
-    {
-      "name": "LogPath",
-      "type": "string",
-      "required": false,
-      "description": "Path to the rotating human-readable script log.",
-      "default": "%TEMP%/QuarantineFile-script.log"
-    },
-    {
-      "name": "ARLog",
-      "type": "string",
-      "required": false,
-      "description": "Active Response JSON log path. Overwrites existing content.",
-      "default": "C:\\Program Files (x86)\\ossec-agent\\active-response\\active-responses.log"
+      "description": "Full path of the file to quarantine.",
+      "arg_position": "1"
     }
   ],
-  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-QUARANTINE-MALICIOUS-FILE-COPILOT-ACTION/refs/heads/main",
-  "script_name": "Quarantine-MaliciousFile.ps1",
+  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-QUARANTINE-FILE-COPILOT-ACTION/refs/heads/main/Quarantine-File.ps1",
+  "script_name": "Quarantine-File.ps1",
   "version": "1.0.0",
-  "last_updated": "2025-08-22T00:00:00Z"
+  "last_updated": "2025-09-09T00:00:00Z"
 }
