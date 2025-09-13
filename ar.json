@@ -12,7 +12,7 @@
       "arg_position": "1"
     }
   ],
-  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-QUARANTINE-FILE-COPILOT-ACTION/refs/heads/main/Quarantine-File.ps1",
+  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-QUARANTINE-MALICIOUS-FILE-COPILOT-ACTION/refs/heads/main/Quarantine-MaliciousFile.ps1",
   "script_name": "Quarantine-File.ps1",
   "version": "1.0.0",
   "last_updated": "2025-09-09T00:00:00Z"
