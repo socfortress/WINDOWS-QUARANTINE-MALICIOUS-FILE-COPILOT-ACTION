@@ -99,11 +99,21 @@ try {
   Move-Item -LiteralPath $TargetPath -Destination $dest -Force
   Write-Log "Moved file to quarantine: $dest" 'INFO'
 
-  $admins = New-Object System.Security.Principal.NTAccount("BUILTIN","Administrators")
+  # Built-in Administrators group SID.
+  # Using the SID avoids dependency on the Windows display language.
+  $adminsSid = New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544")
+  $admins = $adminsSid.Translate([System.Security.Principal.NTAccount])
+
   $acl = New-Object System.Security.AccessControl.FileSecurity
   $acl.SetOwner($admins)
-  $acl.SetAccessRuleProtection($true,$false) 
-  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($admins, "FullControl", "Allow")
+  $acl.SetAccessRuleProtection($true,$false)
+
+  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+      $admins,
+      "FullControl",
+      "Allow"
+  )
+
   $acl.AddAccessRule($rule)
   Set-Acl -LiteralPath $dest -AclObject $acl
   Write-Log "Stripped file permissions and restricted to Administrators" 'INFO'
@@ -153,8 +163,20 @@ try {
     owner_before         = $preOwner
     owner_after          = $postOwner
     inheritance_disabled = $inheritDisabled
-    expected_owner       = 'BUILTIN\Administrators'
-    owner_is_expected    = ( "$postOwner" -like '*BUILTIN*Administrators*' )
+    expected_owner = "$admins"
+    owner_is_expected = if ($postOwner) {
+        try {
+            $postOwnerAccount = New-Object System.Security.Principal.NTAccount($postOwner)
+            $postOwnerSid = $postOwnerAccount.Translate(
+                [System.Security.Principal.SecurityIdentifier]
+            )
+
+            ($postOwnerSid.Value -eq $adminsSid.Value)
+        }
+        catch {
+            $false
+        }
+    }
   }) )
 
   $status =
